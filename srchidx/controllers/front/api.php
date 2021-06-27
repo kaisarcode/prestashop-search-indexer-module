@@ -49,21 +49,51 @@ class SrchIdxApiModuleFrontController extends ModuleFrontController
         // PROCESS REQUESTS
         if ($key = $data->key) {
             
-            // Preprocess
-            if ($act == 'clear') {
+            // Count search index
+            if ($act == 'count-index') {
                 $out->ok = 1;
-                $out->res = $this->procClr();
+                $out->res = $this->countTotals('search_index');
             }
             
-            // Process index
-            if ($act == 'index') {
+            // Count words
+            if ($act == 'count-words') {
                 $out->ok = 1;
-                $pid = (int) Tools::getValue('p');
-                $idx = (int) Tools::getValue('i');
-                $amn = (int) Tools::getValue('m');
-                $out->res = $this->procIdx($pid, $idx, $amn);
+                $out->res = $this->countTotals('search_word');
             }
             
+            // Count prods
+            if ($act == 'count-prods') {
+                $out->ok = 1;
+                $out->res = $this->countTotals('product_shop');
+            }
+            
+            // Clear indexes
+            if ($act == 'clear-index') {
+                $out->ok = 1;
+                $tbl = 'search_index';
+                $key = 'id_word';
+                $ofs = (int) Tools::getValue('ofs');
+                $lmt = (int) Tools::getValue('lmt');
+                $out->res = $this->delRows($tbl, $key, $ofs, $lmt);
+            }
+            
+            // Clear words
+            if ($act == 'clear-words') {
+                $out->ok = 1;
+                $tbl = 'search_word';
+                $key = 'id_word';
+                $ofs = (int) Tools::getValue('ofs');
+                $lmt = (int) Tools::getValue('lmt');
+                $out->res = $this->delRows($tbl, $key, $ofs, $lmt);
+            }
+            
+            // Clear products
+            if ($act == 'index-prods') {
+                $out->ok = 1;
+                $ofs = (int) Tools::getValue('ofs');
+                $lmt = (int) Tools::getValue('lmt');
+                $out->res = $this->indexProds($ofs, $lmt);
+            }
         }
         
         // SHOW OUTPUT
@@ -71,53 +101,57 @@ class SrchIdxApiModuleFrontController extends ModuleFrontController
         echo $data;
     }
     
-    // PROCESS CLEANUP
-    private function procClr()
+    private function delRows($tbl, $key, $ofs, $lmt)
     {
-        $dbx = _DB_PREFIX_;
-        $dbi = DB::getInstance();
-        $dbi->delete('search_word', 1);
-        $dbi->delete('search_index', 1);
-        $dbi->update('product_shop', array(
-            'indexed' => 0
-        ), 1);
-        $cnt = $this->countProds();
-        return $cnt;
-    }
-    
-    // PROCESS INDEX
-    private function procIdx($pid = 0, $idx = 0, $amn = 1)
-    {
-        $dbx = _DB_PREFIX_;
-        $pid = (int) $pid;
-        $idx = (int) $idx;
-        $amn = (int) $amn;
         $out = new stdClass();
+        $dbx = _DB_PREFIX_;
         $dbi = DB::getInstance();
-        $cnt = $this->countProds();
         $sql = "
-        SELECT id_product AS id
-        FROM {$dbx}product_shop
-        ORDER BY id_product ASC
-        LIMIT $pid, $amn;";
+        SELECT $key AS id
+        FROM {$dbx}{$tbl}
+        ORDER BY id ASC
+        LIMIT $lmt OFFSET $ofs;";
         $res = $dbi->executeS($sql);
+        $out->id = $ofs;
+        $out->cn = count($res)+1;
         foreach ($res as $r) {
-            $idx++;
-            $out->idx = $idx;
-            $out->pid = (int) $r['id'];
-            Search::indexation(0, $pid);
+            $id = $r['id'];
+            $out->id = (int) $id;
+            $dbi->delete($tbl, "$key = $id");
         }
         return $out;
     }
     
-    // COUNT PRODUCTS
-    private function countProds()
+    // CLEAR PRODUCTS
+    private function indexProds($ofs, $lmt)
+    {
+        $out = new stdClass();
+        $dbx = _DB_PREFIX_;
+        $dbi = DB::getInstance();
+        $sql = "
+        SELECT id_product AS id
+        FROM {$dbx}product_shop
+        ORDER BY id ASC
+        LIMIT $lmt OFFSET $ofs;";
+        $res = $dbi->executeS($sql);
+        $out->id = $ofs;
+        $out->cn = count($res)+1;
+        foreach ($res as $r) {
+            $id = $r['id'];
+            $out->id = (int) $id;
+            Search::indexation(0, $id);
+        }
+        return $out;
+    }
+    
+    // COUNT TOTALS
+    private function countTotals($tbl)
     {
         $dbx = _DB_PREFIX_;
         $dbi = DB::getInstance();
         $sql = "
         SELECT COUNT(*) AS t
-        FROM {$dbx}product_shop;";
+        FROM {$dbx}{$tbl};";
         $res = $dbi->executeS($sql);
         return (int) $res[0]['t'];
     }

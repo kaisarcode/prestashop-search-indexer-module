@@ -57,9 +57,12 @@
 </div>
 <script>
 (function(){
-    var pid = 0;
-    var idx = 0;
-    var tot = 0;
+    
+    var idxes = 0; var idxcn = 0;
+    var words = 0; var wrdcn = 0;
+    var prods = 0; var prdcn = 0;
+    var items = 0; var itmcn = 0;
+    
     var mgs = [];
     var key = '{$data->key}';
     var api = '{$data->url->api}';
@@ -67,39 +70,101 @@
     var bar = $('#srchidx-bar');
     var per = $('#srchidx-per');
     var btn = $('#srchidx-btn');
+    
     btn.on('click', function(){
-        pid = 0;
-        idx = 0;
-        tot = 0;
+        
+        idxes = 0; idxcn = 0;
+        words = 0; wrdcn = 0;
+        prods = 0; prdcn = 0;
+        items = 0; itmcn = 0;
+        
         setUI(1, 0, mgs[0]);
-        post('clear', 0, function(res){
-            tot = res;
-            setTimeout(procIdx,1000);
+        post('count-index', 0, function(res){
+            idxes = res;
+            items += res;
+            setUI(1, 0, mgs[1]);
+            post('count-words', 0, function(res){
+                words = res;
+                items += res;
+                setUI(1, 0, mgs[2]);
+                post('count-prods', 0, function(res){
+                    prods = res;
+                    items += res;
+                    clearIndex(0, 0);
+                });
+            });
         });
     });
-    function procIdx() {
+    
+    function clearIndex(ofs, prg) {
+        setUI(1, prg, mgs[3]);
         var prm = {};
-        prm.p = pid;
-        prm.i = idx;
-        prm.m = 1;
-        if (tot > 50) prm.m = 10;
-        if (tot > 100) prm.m = 50;
-        if (tot > 1000) prm.m = 100;
-        post('index', prm, function(res){
-            console.log(res);
-            idx = res.idx;
-            pid = pid + 1;
-            prg = (idx * 100) / tot;
+        prm.ofs = ofs;
+        prm.lmt = 1;
+        if (idxes > 50) prm.lmt = 10;
+        if (idxes > 100) prm.lmt = 50;
+        if (idxes > 1000) prm.lmt = 100;
+        if (idxes > 10000) prm.lmt = 500;
+        post('clear-index', prm, function(res){
+            idxcn += res.cn;
+            itmcn += res.cn;
+            prg = (itmcn*100)/items;
             prg = Math.floor(prg);
             prg >= 100 ? prg = 100:'';
-            if (idx >= tot) {
-                setUI(0, 100, mgs[3]);
+            if (idxcn >= idxes) {
+                clearWords(0, prg);
             } else {
-                setUI(1, prg, mgs[2]);
-                procIdx();
+                clearIndex(0, prg);
             }
         });
     }
+    
+    function clearWords(ofs, prg) {
+        setUI(1, prg, mgs[4]);
+        var prm = {};
+        prm.ofs = ofs;
+        prm.lmt = 1;
+        if (words > 50) prm.lmt = 10;
+        if (words > 100) prm.lmt = 50;
+        if (words > 1000) prm.lmt = 100;
+        if (words > 10000) prm.lmt = 500;
+        post('clear-words', prm, function(res){
+            wrdcn += res.cn;
+            itmcn += res.cn;
+            prg = (itmcn*100)/items;
+            prg = Math.floor(prg);
+            prg >= 100 ? prg = 100:'';
+            if (wrdcn >= words) {
+                indexProds(0, prg);
+            } else {
+                clearWords(0, prg);
+            }
+        });
+    }
+    
+    function indexProds(ofs, prg) {
+        setUI(1, prg, mgs[5]);
+        var prm = {};
+        prm.ofs = ofs;
+        prm.lmt = 1;
+        if (prods > 50) prm.lmt = 10;
+        if (prods > 100) prm.lmt = 50;
+        if (prods > 1000) prm.lmt = 100;
+        if (prods > 10000) prm.lmt = 500;
+        post('index-prods', prm, function(res){
+            prdcn += res.cn;
+            itmcn += res.cn;
+            prg = (itmcn*100)/items;
+            prg = Math.floor(prg);
+            prg >= 100 ? prg = 100:'';
+            if (prdcn >= prods) {
+                setUI(0, prg, mgs[6]);
+            } else {
+                indexProds(itmcn, prg);
+            }
+        });
+    }
+    
     function setUI(ds, pr, tx) {
         ds = ds || 0;
         pr = pr || 0;
@@ -116,12 +181,19 @@
         dt.k = key;
         $.post(api, dt, function(res){
             if (res.ok) { cb(res.res);
-            } else { setUI(0, 0, mgs[1]); }
+            } else { setUI(0, 0, mgs[8]); }
         });
     }
-    mgs.push("{l s='Cleaning up...' mod='srchidx'}");
-    mgs.push("{l s='Error' mod='srchidx'}");
+    
+    mgs.push("{l s='Obtaining indexes' mod='srchidx'}");
+    mgs.push("{l s='Obtaining words' mod='srchidx'}");
+    mgs.push("{l s='Obtaining products' mod='srchidx'}");
+    
+    mgs.push("{l s='Cleaning up index' mod='srchidx'}");
+    mgs.push("{l s='Cleaning up words' mod='srchidx'}");
+    
     mgs.push("{l s='Indexing' mod='srchidx'}");
     mgs.push("{l s='Finished!' mod='srchidx'}");
+    mgs.push("{l s='Error' mod='srchidx'}");
 })();
 </script>
